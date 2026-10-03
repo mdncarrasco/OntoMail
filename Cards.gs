@@ -73,8 +73,10 @@ function buildResultsCard(abox) {
 
   var card = CardService.newCardBuilder().setHeader(header);
 
+  // Parking lot: every type EXCEPT commitments (those go to the actionables section).
   for (var k = 0; k < TYPE_ORDER.length; k++) {
     var type = TYPE_ORDER[k];
+    if (type === 'gist:Commitment') { continue; }
     var items = byType[type];
     if (!items || items.length === 0) { continue; }
 
@@ -90,6 +92,13 @@ function buildResultsCard(abox) {
     card.addSection(section);
   }
 
+  // Actionables: one editable, selectable entry per commitment.
+  var commitments = byType['gist:Commitment'] || [];
+  if (commitments.length > 0) {
+    card.addSection(buildActionablesSection(commitments));
+    card.addSection(buildActionButtonsSection(abox));
+  }
+
   if (graph.length === 0) {
     card.addSection(
       CardService.newCardSection().addWidget(
@@ -99,4 +108,124 @@ function buildResultsCard(abox) {
   }
 
   return card.build();
+}
+
+/**
+ * Builds the actionables section: each commitment gets a selection switch, an
+ * editable title, and an editable due date. Field names are indexed so
+ * onCreateTasks can read them back from the form.
+ * @param {Object[]} commitments - gist:Commitment instances.
+ * @returns {CardSection}
+ */
+function buildActionablesSection(commitments) {
+  var section = CardService.newCardSection().setHeader('📌 Compromisos (crear tareas)');
+
+  for (var i = 0; i < commitments.length; i++) {
+    var c = commitments[i];
+    var title = c.name || 'Compromiso ' + (i + 1);
+
+    // Selection switch (checked by default) that carries this row's index.
+    var selectSwitch = CardService.newDecoratedText()
+      .setText(title)
+      .setWrapText(true)
+      .setSwitchControl(
+        CardService.newSwitch()
+          .setFieldName('select_' + i)
+          .setValue('on')
+          .setSelected(true)
+      );
+    section.addWidget(selectSwitch);
+
+    // Editable title.
+    section.addWidget(
+      CardService.newTextInput()
+        .setFieldName('title_' + i)
+        .setTitle('Título de la tarea')
+        .setValue(title)
+    );
+
+    // Editable due date. Prefill from the commitment's dueDate if present.
+    var datePicker = CardService.newDatePicker()
+      .setFieldName('due_' + i)
+      .setTitle('Fecha límite (opcional)');
+    var ms = parseDueDateMs(c.dueDate);
+    if (ms !== null) {
+      datePicker.setValueInMsSinceEpoch(ms);
+    }
+    section.addWidget(datePicker);
+  }
+
+  return section;
+}
+
+/**
+ * Builds the action buttons: Create tasks (carries the ABox + count) and
+ * Preserve in Drive (wired in slice 5).
+ * @param {Object} abox
+ * @returns {CardSection}
+ */
+function buildActionButtonsSection(abox) {
+  var commitmentCount = ((abox['@graph'] || []).filter(function(x) {
+    return x['@type'] === 'gist:Commitment';
+  })).length;
+
+  var createAction = CardService.newAction()
+    .setFunctionName('onCreateTasks')
+    .setParameters({ count: String(commitmentCount) });
+
+  var createButton = CardService.newTextButton()
+    .setText('Crear tareas')
+    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+    .setOnClickAction(createAction);
+
+  var preserveButton = CardService.newTextButton()
+    .setText('Preservar en Drive')
+    .setOnClickAction(CardService.newAction().setFunctionName('onPreserve'));
+
+  return CardService.newCardSection().addWidget(
+    CardService.newButtonSet()
+      .addButton(createButton)
+      .addButton(preserveButton)
+  );
+}
+
+/**
+ * Parses an ISO yyyy-mm-dd due date into ms since epoch (UTC midnight), or null.
+ * ponytail: naive parse — assumes the model emits yyyy-mm-dd per the prompt
+ * contract; a malformed date just yields no prefill rather than throwing.
+ * @param {string} iso
+ * @returns {number|null}
+ */
+function parseDueDateMs(iso) {
+  if (!iso || typeof iso !== 'string') { return null; }
+  var m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) { return null; }
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/**
+ * Builds the confirmation card shown after tasks are created.
+ * @param {string[]} createdTitles
+ * @returns {Card}
+ */
+function buildConfirmationCard(createdTitles) {
+  var header = CardService.newCardHeader().setTitle('Tareas creadas');
+  var section = CardService.newCardSection();
+
+  if (createdTitles.length === 0) {
+    section.addWidget(
+      CardService.newTextParagraph().setText('No seleccionaste ningún compromiso, no se creó ninguna tarea.')
+    );
+  } else {
+    section.addWidget(
+      CardService.newTextParagraph().setText('Se crearon ' + createdTitles.length + ' tarea(s) en Google Tasks:')
+    );
+    for (var i = 0; i < createdTitles.length; i++) {
+      section.addWidget(
+        CardService.newDecoratedText().setText('✓ ' + createdTitles[i]).setWrapText(true)
+      );
+    }
+  }
+
+  return CardService.newCardBuilder().setHeader(header).addSection(section).build();
 }
