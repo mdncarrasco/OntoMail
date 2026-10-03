@@ -35,7 +35,7 @@ PRD ref: `prd.md > The Core Journey`.
 - **Gmail Add-on / CardService** — the UI and Gmail integration. [Docs: https://developers.google.com/apps-script/add-ons/cards]
 - **Gemini API** via `UrlFetchApp` — the LLM. `generateContent` with `responseMimeType: application/json`. [Docs: https://ai.google.dev/gemini-api/docs/text-generation ; structured output: https://ai.google.dev/gemini-api/docs/structured-output]
 - **Google Tasks** — via the advanced Tasks service or Tasks REST API. [Docs: https://developers.google.com/tasks/reference/rest]
-- **Google Drive** (`DriveApp`) — the preserve step. [Docs: https://developers.google.com/apps-script/reference/drive]
+- **Google Drive** (`DriveApp`) — the preserve step. Scope: `auth/drive` (DriveApp.createFile requires the broad scope; `drive.file` is rejected for generic file creation). [Docs: https://developers.google.com/apps-script/reference/drive]
 - **clasp** — local dev / push, same as sibling projects. [Docs: https://github.com/google/clasp]
 - Rationale: reuse the OntoDistiller pattern verbatim (learner's own, proven) → zero new dependencies, no deployment. Accepted tradeoff: CardService's fixed widget vocabulary means the "parking lot" is rows with per-type accents, not free-form colored tiles (agreed in `prd.md`).
 
