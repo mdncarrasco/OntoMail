@@ -25,6 +25,11 @@ function extractAbox(email) {
     throw new Error('Falta GEMINI_MODEL en las propiedades del script.');
   }
   model = model.trim();
+  // Tolerate "gemini-2.0-flash" or "models/gemini-2.0-flash"; the API path needs
+  // the "models/" prefix. Without it the endpoint 404s with an empty body.
+  if (model.indexOf('models/') !== 0) {
+    model = 'models/' + model;
+  }
 
   var url = 'https://generativelanguage.googleapis.com/v1beta/' +
     model + ':generateContent?key=' + encodeURIComponent(apiKey);
@@ -51,7 +56,12 @@ function extractAbox(email) {
   var text = response.getContentText();
 
   if (code !== 200) {
-    throw new Error('Gemini respondió HTTP ' + code + ': ' + text);
+    var detail = text && text.trim() !== '' ? text : '(sin cuerpo)';
+    if (code === 404) {
+      detail = 'modelo "' + model + '" no encontrado en v1beta. ' +
+        'Verifica GEMINI_MODEL con ListModels. ' + detail;
+    }
+    throw new Error('Gemini respondió HTTP ' + code + ': ' + detail);
   }
 
   var body;
