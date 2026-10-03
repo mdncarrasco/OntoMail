@@ -9,7 +9,7 @@ Build mode: fast
 
 ## Slices
 
-- [ ] **1. The add-on opens in Gmail and shows the home card**
+- [x] **1. The add-on opens in Gmail and shows the home card**
   Becomes usable: Installing the add-on and opening an email shows the OntoMail home card — title, short Spanish explanation, and a Process email button (button not wired yet).
   Why now: Proves the whole Apps Script + Gmail Add-on + CardService + manifest path end to end on slice one, so every later behavior has a card to land in. Bootstraps the project (manifest, scopes, `.clasp.json`, `clasp push`).
   PRD ref: `prd.md > Screens and Layout` (Home card), `prd.md > The Core Journey` (1-2)
@@ -19,7 +19,7 @@ Build mode: fast
   Learner check: Open an email in Gmail with OntoMail installed and confirm the home card appears as you pictured it (title, explanation, Process button).
   Commit: `Scaffold Gmail add-on with home card`
 
-- [ ] **2. Press Process and see the real ABox extracted from the email (the kernel)**
+- [x] **2. Press Process and see the real ABox extracted from the email (the kernel)**
   Becomes usable: Pressing Process reads the open email, calls Gemini with the gist TBox, and renders the extracted ABox instances grouped by gist type with per-type accents (the parking lot). This is the unique kernel working for the first time.
   Why now: The Gemini→JSON-LD call and the gist term mapping are the two biggest risks (spec Decisions). Proving them early, with a real email, is the whole point of the project.
   PRD ref: `prd.md > Processing the current email`, `prd.md > Showing the extracted ABox`
@@ -81,3 +81,5 @@ Reflection: [pending]
 Activity mode: [pending]
 
 ## Revisions
+
+- Restored `appsscript.json` after `clasp create-script` overwrote it — clasp 3.x replaces the manifest with a bare default on project creation, wiping the add-on config, OAuth scopes, and the Tasks advanced service. Recovered from the slice-1 commit; `.clasp.json` now carries the real `scriptId`. (`6-ship` should confirm whether the scriptId should ship in a public repo.)
