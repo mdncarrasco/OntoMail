@@ -204,6 +204,82 @@ function parseDueDateMs(iso) {
 }
 
 /**
+ * Builds the no-actionables card: the extracted knowledge (parking lot) plus a
+ * clear message that there's nothing to turn into a task. Reuses the same
+ * grouped-by-type rendering; since there are no commitments, buildResultsCard
+ * already omits the actionables section — we just prepend the message.
+ * @param {Object} abox
+ * @returns {Card}
+ */
+function buildNoActionablesCard(abox) {
+  var header = CardService.newCardHeader()
+    .setTitle('Conocimiento extraído')
+    .setSubtitle('Sin compromisos accionables');
+
+  var graph = (abox && abox['@graph']) ? abox['@graph'] : [];
+  var byType = {};
+  for (var i = 0; i < graph.length; i++) {
+    var inst = graph[i];
+    var t = inst['@type'];
+    if (!byType[t]) { byType[t] = []; }
+    byType[t].push(inst);
+  }
+
+  var card = CardService.newCardBuilder().setHeader(header);
+
+  card.addSection(
+    CardService.newCardSection().addWidget(
+      CardService.newTextParagraph().setText('Nada que accionar aquí: no se detectaron compromisos en este correo.')
+    )
+  );
+
+  for (var k = 0; k < TYPE_ORDER.length; k++) {
+    var type = TYPE_ORDER[k];
+    if (type === 'gist:Commitment') { continue; }
+    var items = byType[type];
+    if (!items || items.length === 0) { continue; }
+
+    var accent = TYPE_ACCENTS[type];
+    var section = CardService.newCardSection().setHeader(accent.emoji + ' ' + accent.label);
+    for (var j = 0; j < items.length; j++) {
+      var name = items[j].name || items[j]['@id'] || '(sin nombre)';
+      section.addWidget(CardService.newDecoratedText().setText(name).setWrapText(true));
+    }
+    card.addSection(section);
+  }
+
+  return card.build();
+}
+
+/**
+ * Builds the error card: a clear message and a Reintentar button that re-runs
+ * processing. Nothing is created or saved on this path.
+ * @param {string} message
+ * @returns {Card}
+ */
+function buildErrorCard(message) {
+  var header = CardService.newCardHeader().setTitle('No se pudo procesar');
+
+  var retryButton = CardService.newTextButton()
+    .setText('Reintentar')
+    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+    .setOnClickAction(CardService.newAction().setFunctionName('onProcess'));
+
+  var section = CardService.newCardSection()
+    .addWidget(
+      CardService.newTextParagraph().setText(
+        'Ocurrió un error al procesar el correo. No se creó ni guardó nada.'
+      )
+    )
+    .addWidget(
+      CardService.newDecoratedText().setText(message || 'Error desconocido.').setWrapText(true)
+    )
+    .addWidget(CardService.newButtonSet().addButton(retryButton));
+
+  return CardService.newCardBuilder().setHeader(header).addSection(section).build();
+}
+
+/**
  * Builds the confirmation card shown after tasks are created.
  * @param {string[]} createdTitles
  * @returns {Card}

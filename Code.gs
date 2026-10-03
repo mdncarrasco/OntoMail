@@ -31,12 +31,30 @@ function buildContextualCard(e) {
  * @returns {ActionResponse}
  */
 function onProcess(e) {
-  var email = readCurrentEmail(e);
-  var abox = extractAbox(email);
+  var abox;
+  try {
+    var email = readCurrentEmail(e);
+    abox = extractAbox(email);
+  } catch (err) {
+    // Gemini failure or unparseable response: show a clear error + retry.
+    // Nothing is created or saved on this path.
+    return CardService.newActionResponseBuilder()
+      .setNavigation(
+        CardService.newNavigation().pushCard(buildErrorCard(err.message || String(err)))
+      )
+      .build();
+  }
+
+  var hasCommitments = (abox['@graph'] || []).some(function(x) {
+    return x['@type'] === 'gist:Commitment';
+  });
+
+  var card = hasCommitments
+    ? buildResultsCard(abox)
+    : buildNoActionablesCard(abox);
+
   return CardService.newActionResponseBuilder()
-    .setNavigation(
-      CardService.newNavigation().pushCard(buildResultsCard(abox))
-    )
+    .setNavigation(CardService.newNavigation().pushCard(card))
     .build();
 }
 
@@ -66,9 +84,6 @@ function readCurrentEmail(e) {
  * @returns {ActionResponse}
  */
 function onCreateTasks(e) {
-  // Diagnostic: see exactly what Gmail sends so switch reading isn't guesswork.
-  try { console.log('onCreateTasks event: ' + JSON.stringify(e)); } catch (ignore) {}
-
   var count = Number(e.parameters.count || '0');
   var inputs = e.formInputs || {};
   var simple = e.formInput || {};
