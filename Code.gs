@@ -66,17 +66,21 @@ function readCurrentEmail(e) {
  * @returns {ActionResponse}
  */
 function onCreateTasks(e) {
+  // Diagnostic: see exactly what Gmail sends so switch reading isn't guesswork.
+  try { console.log('onCreateTasks event: ' + JSON.stringify(e)); } catch (ignore) {}
+
   var count = Number(e.parameters.count || '0');
   var inputs = e.formInputs || {};
+  var simple = e.formInput || {};
   var created = [];
 
   for (var i = 0; i < count; i++) {
-    if (!isSelected(inputs, 'select_' + i)) { continue; }
+    if (!isSelected(simple, inputs, 'select_' + i)) { continue; }
 
-    var title = firstInput(inputs, 'title_' + i) || ('Compromiso ' + (i + 1));
+    var title = readText(simple, inputs, 'title_' + i) || ('Compromiso ' + (i + 1));
     var task = { title: title };
 
-    var dueMs = firstDateMs(inputs, 'due_' + i);
+    var dueMs = readDateMs(simple, inputs, 'due_' + i);
     if (dueMs !== null) {
       // Tasks API expects an RFC 3339 timestamp; the date part is what matters.
       task.due = new Date(dueMs).toISOString();
@@ -104,25 +108,35 @@ function onPreserve(e) {
 }
 
 /**
- * Whether a switch field is selected. CardService only includes a switch in the
- * form inputs when it is on, so presence implies selected.
- * @param {Object} inputs - e.formInputs
+ * Whether a switch field is selected. An unselected switch is absent from the
+ * form inputs; a selected one carries its value. Reads the flat `e.formInput`
+ * map first (the simple, documented shape) and falls back to the structured
+ * `e.formInputs` map.
+ * @param {Object} simple - e.formInput (flat fieldName -> value)
+ * @param {Object} inputs - e.formInputs (structured)
  * @param {string} field
  * @returns {boolean}
  */
-function isSelected(inputs, field) {
+function isSelected(simple, inputs, field) {
+  if (Object.prototype.hasOwnProperty.call(simple, field)) {
+    return !!simple[field];
+  }
   return !!(inputs[field] && inputs[field].stringInputs &&
             inputs[field].stringInputs.value &&
             inputs[field].stringInputs.value.length > 0);
 }
 
 /**
- * Reads the first string value of a text input field, or '' if absent.
- * @param {Object} inputs
+ * Reads a text input value, '' if absent. Flat map first, structured fallback.
+ * @param {Object} simple - e.formInput
+ * @param {Object} inputs - e.formInputs
  * @param {string} field
  * @returns {string}
  */
-function firstInput(inputs, field) {
+function readText(simple, inputs, field) {
+  if (typeof simple[field] === 'string') {
+    return simple[field];
+  }
   if (inputs[field] && inputs[field].stringInputs &&
       inputs[field].stringInputs.value &&
       inputs[field].stringInputs.value.length > 0) {
@@ -132,12 +146,20 @@ function firstInput(inputs, field) {
 }
 
 /**
- * Reads a DatePicker field's ms-since-epoch value, or null if not set.
- * @param {Object} inputs
+ * Reads a DatePicker ms-since-epoch value, null if not set. In the flat
+ * `e.formInput` map a date arrives as { msSinceEpoch } or a number; the
+ * structured map uses dateInput.msSinceEpoch.
+ * @param {Object} simple - e.formInput
+ * @param {Object} inputs - e.formInputs
  * @param {string} field
  * @returns {number|null}
  */
-function firstDateMs(inputs, field) {
+function readDateMs(simple, inputs, field) {
+  var v = simple[field];
+  if (v && typeof v === 'object' && typeof v.msSinceEpoch !== 'undefined') {
+    return Number(v.msSinceEpoch);
+  }
+  if (typeof v === 'number') { return v; }
   if (inputs[field] && inputs[field].dateInput &&
       typeof inputs[field].dateInput.msSinceEpoch !== 'undefined') {
     return Number(inputs[field].dateInput.msSinceEpoch);

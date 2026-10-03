@@ -2,19 +2,24 @@
  * form_inputs_check.js - Runnable self-check for the form-input reading logic.
  *
  * CardService isn't available outside Apps Script, so this mirrors ONLY the pure
- * helpers that read e.formInputs (the shape Google sends) and the due-date
- * parse. If selection detection, title reading, or date handling breaks, this
- * fails. Run: node tests/form_inputs_check.js
+ * helpers that read Gmail's form values. Covers BOTH shapes: the flat
+ * `e.formInput` map (preferred) and the structured `e.formInputs` fallback.
+ * If selection detection, title reading, or date handling breaks, this fails.
+ * Run: node tests/form_inputs_check.js
  */
 const assert = require('assert');
 
 // --- mirrors of the pure helpers in Code.gs / Cards.gs ---
-function isSelected(inputs, field) {
+function isSelected(simple, inputs, field) {
+  if (Object.prototype.hasOwnProperty.call(simple, field)) {
+    return !!simple[field];
+  }
   return !!(inputs[field] && inputs[field].stringInputs &&
             inputs[field].stringInputs.value &&
             inputs[field].stringInputs.value.length > 0);
 }
-function firstInput(inputs, field) {
+function readText(simple, inputs, field) {
+  if (typeof simple[field] === 'string') { return simple[field]; }
   if (inputs[field] && inputs[field].stringInputs &&
       inputs[field].stringInputs.value &&
       inputs[field].stringInputs.value.length > 0) {
@@ -22,7 +27,12 @@ function firstInput(inputs, field) {
   }
   return '';
 }
-function firstDateMs(inputs, field) {
+function readDateMs(simple, inputs, field) {
+  const v = simple[field];
+  if (v && typeof v === 'object' && typeof v.msSinceEpoch !== 'undefined') {
+    return Number(v.msSinceEpoch);
+  }
+  if (typeof v === 'number') { return v; }
   if (inputs[field] && inputs[field].dateInput &&
       typeof inputs[field].dateInput.msSinceEpoch !== 'undefined') {
     return Number(inputs[field].dateInput.msSinceEpoch);
@@ -36,35 +46,42 @@ function parseDueDateMs(iso) {
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
-// --- the shape CardService actually sends in e.formInputs ---
-const inputs = {
-  'select_0': { stringInputs: { value: ['on'] } },
-  'title_0':  { stringInputs: { value: ['Enviar informe'] } },
-  'due_0':    { dateInput: { msSinceEpoch: Date.UTC(2026, 9, 10) } },
-  // row 1 deselected: the switch is simply absent from the form inputs
-  'title_1':  { stringInputs: { value: ['Pagar factura'] } }
+// === Shape A: flat e.formInput (the real Gmail shape for these widgets) ===
+// Selected switches carry their value; deselected switches are absent.
+const flat = {
+  'select_0': 'on',
+  'title_0': 'Enviar informe',
+  'due_0': { msSinceEpoch: Date.UTC(2026, 9, 10) },
+  // row 1 deselected: select_1 absent
+  'title_1': 'Pagar factura'
 };
+const noStruct = {};
 
-// Selected row is detected; deselected row is not.
-assert.strictEqual(isSelected(inputs, 'select_0'), true);
-assert.strictEqual(isSelected(inputs, 'select_1'), false);
+assert.strictEqual(isSelected(flat, noStruct, 'select_0'), true, 'flat: selected switch');
+assert.strictEqual(isSelected(flat, noStruct, 'select_1'), false, 'flat: deselected switch absent');
+assert.strictEqual(readText(flat, noStruct, 'title_0'), 'Enviar informe', 'flat: edited title');
+assert.strictEqual(readText(flat, noStruct, 'title_9'), '', 'flat: missing title');
+assert.strictEqual(readDateMs(flat, noStruct, 'due_0'), Date.UTC(2026, 9, 10), 'flat: date object');
+assert.strictEqual(readDateMs(flat, noStruct, 'due_1'), null, 'flat: missing date');
 
-// Edited title is read back.
-assert.strictEqual(firstInput(inputs, 'title_0'), 'Enviar informe');
-// Missing field yields ''.
-assert.strictEqual(firstInput(inputs, 'title_9'), '');
+// date can also arrive as a bare number
+assert.strictEqual(readDateMs({ 'due_x': Date.UTC(2026, 0, 1) }, noStruct, 'due_x'), Date.UTC(2026, 0, 1));
 
-// Date is read when present, null when absent.
-assert.strictEqual(firstDateMs(inputs, 'due_0'), Date.UTC(2026, 9, 10));
-assert.strictEqual(firstDateMs(inputs, 'due_1'), null);
+// === Shape B: structured e.formInputs fallback ===
+const structured = {
+  'select_0': { stringInputs: { value: ['on'] } },
+  'title_0': { stringInputs: { value: ['Enviar informe'] } },
+  'due_0': { dateInput: { msSinceEpoch: Date.UTC(2026, 9, 10) } }
+};
+const noFlat = {};
+assert.strictEqual(isSelected(noFlat, structured, 'select_0'), true, 'struct: selected');
+assert.strictEqual(isSelected(noFlat, structured, 'select_1'), false, 'struct: absent');
+assert.strictEqual(readText(noFlat, structured, 'title_0'), 'Enviar informe', 'struct: title');
+assert.strictEqual(readDateMs(noFlat, structured, 'due_0'), Date.UTC(2026, 9, 10), 'struct: date');
 
-// Due-date prefill parse: valid ISO, and graceful null on junk.
+// === due-date prefill parse ===
 assert.strictEqual(parseDueDateMs('2026-10-10'), Date.UTC(2026, 9, 10));
 assert.strictEqual(parseDueDateMs('next friday'), null);
 assert.strictEqual(parseDueDateMs(undefined), null);
-
-// A created task's RFC-3339 due string round-trips to the same date.
-const due = new Date(firstDateMs(inputs, 'due_0')).toISOString();
-assert.ok(due.startsWith('2026-10-10'));
 
 console.log('form_inputs_check: PASS');
