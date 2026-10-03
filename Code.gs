@@ -32,8 +32,9 @@ function buildContextualCard(e) {
  */
 function onProcess(e) {
   var abox;
+  var email;
   try {
-    var email = readCurrentEmail(e);
+    email = readCurrentEmail(e);
     abox = extractAbox(email);
   } catch (err) {
     // Gemini failure or unparseable response: show a clear error + retry.
@@ -45,13 +46,19 @@ function onProcess(e) {
       .build();
   }
 
+  var emailRef = {
+    subject: email.subject,
+    sender: email.sender,
+    permalink: email.permalink
+  };
+
   var hasCommitments = (abox['@graph'] || []).some(function(x) {
     return x['@type'] === 'gist:Commitment';
   });
 
   var card = hasCommitments
-    ? buildResultsCard(abox)
-    : buildNoActionablesCard(abox);
+    ? buildResultsCard(abox, emailRef)
+    : buildNoActionablesCard(abox, emailRef);
 
   return CardService.newActionResponseBuilder()
     .setNavigation(CardService.newNavigation().pushCard(card))
@@ -69,10 +76,12 @@ function readCurrentEmail(e) {
   GmailApp.setCurrentMessageAccessToken(accessToken);
 
   var message = GmailApp.getMessageById(messageId);
+  var thread = message.getThread();
   return {
     subject: message.getSubject(),
     sender: message.getFrom(),
-    body: message.getPlainBody()
+    body: message.getPlainBody(),
+    permalink: thread ? thread.getPermalink() : ''
   };
 }
 
@@ -114,12 +123,50 @@ function onCreateTasks(e) {
 }
 
 /**
- * Action: preserve the ABox to Drive. Wired in slice 5.
+ * Action: preserve the ABox to Drive as a Markdown file (embedded JSON-LD +
+ * a reference back to the source email). Independent of task creation.
  * @param {Object} e
  * @returns {ActionResponse}
  */
 function onPreserve(e) {
-  return notify('La opción de preservar en Drive se habilita en el siguiente paso.');
+  var abox = JSON.parse(e.parameters.abox || '{}');
+  var emailRef = JSON.parse(e.parameters.emailRef || '{}');
+
+  var markdown = buildAboxMarkdown(abox, emailRef);
+  var baseName = (emailRef.subject || 'correo').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
+  var fileName = 'OntoMail - ' + baseName + '.md';
+
+  var file = DriveApp.createFile(fileName, markdown, 'text/markdown');
+
+  return notify('Guardado en Drive: ' + file.getName());
+}
+
+/**
+ * Builds the Markdown document that preserves an ABox: a human header, the
+ * source-email reference, and the ABox as a fenced JSON-LD block. This is the
+ * seed of the future enterprise knowledge graph.
+ * @param {Object} abox
+ * @param {{subject: string, sender: string, permalink: string}} emailRef
+ * @returns {string}
+ */
+function buildAboxMarkdown(abox, emailRef) {
+  var lines = [];
+  lines.push('# OntoMail — ABox preservado');
+  lines.push('');
+  lines.push('## Correo de origen');
+  lines.push('- **Asunto:** ' + (emailRef.subject || '(sin asunto)'));
+  lines.push('- **Remitente:** ' + (emailRef.sender || '(desconocido)'));
+  if (emailRef.permalink) {
+    lines.push('- **Enlace:** ' + emailRef.permalink);
+  }
+  lines.push('- **Preservado:** ' + new Date().toISOString());
+  lines.push('');
+  lines.push('## ABox (JSON-LD)');
+  lines.push('');
+  lines.push('```json');
+  lines.push(JSON.stringify(abox, null, 2));
+  lines.push('```');
+  return lines.join('\n');
 }
 
 /**

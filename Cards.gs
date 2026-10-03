@@ -53,9 +53,10 @@ var TYPE_ORDER = ['gist:Person', 'gist:Organization', 'gist:Commitment', 'gist:T
  * Builds the results card: the extracted ABox as a parking lot, with instances
  * grouped by gist type, each row carrying its type accent.
  * @param {Object} abox - JSON-LD with a @graph array of typed instances.
+ * @param {Object} emailRef - { subject, sender, permalink } for preserve.
  * @returns {Card}
  */
-function buildResultsCard(abox) {
+function buildResultsCard(abox, emailRef) {
   var header = CardService.newCardHeader()
     .setTitle('Conocimiento extraído')
     .setSubtitle('ABox del correo');
@@ -96,7 +97,7 @@ function buildResultsCard(abox) {
   var commitments = byType['gist:Commitment'] || [];
   if (commitments.length > 0) {
     card.addSection(buildActionablesSection(commitments));
-    card.addSection(buildActionButtonsSection(abox));
+    card.addSection(buildActionButtonsSection(abox, emailRef));
   }
 
   if (graph.length === 0) {
@@ -162,9 +163,10 @@ function buildActionablesSection(commitments) {
  * Builds the action buttons: Create tasks (carries the ABox + count) and
  * Preserve in Drive (wired in slice 5).
  * @param {Object} abox
+ * @param {Object} emailRef - { subject, sender, permalink } for preserve.
  * @returns {CardSection}
  */
-function buildActionButtonsSection(abox) {
+function buildActionButtonsSection(abox, emailRef) {
   var commitmentCount = ((abox['@graph'] || []).filter(function(x) {
     return x['@type'] === 'gist:Commitment';
   })).length;
@@ -180,7 +182,7 @@ function buildActionButtonsSection(abox) {
 
   var preserveButton = CardService.newTextButton()
     .setText('Preservar en Drive')
-    .setOnClickAction(CardService.newAction().setFunctionName('onPreserve'));
+    .setOnClickAction(preserveAction(abox, emailRef));
 
   return CardService.newCardSection().addWidget(
     CardService.newButtonSet()
@@ -209,9 +211,10 @@ function parseDueDateMs(iso) {
  * grouped-by-type rendering; since there are no commitments, buildResultsCard
  * already omits the actionables section — we just prepend the message.
  * @param {Object} abox
+ * @param {Object} emailRef - { subject, sender, permalink } for preserve.
  * @returns {Card}
  */
-function buildNoActionablesCard(abox) {
+function buildNoActionablesCard(abox, emailRef) {
   var header = CardService.newCardHeader()
     .setTitle('Conocimiento extraído')
     .setSubtitle('Sin compromisos accionables');
@@ -248,7 +251,45 @@ function buildNoActionablesCard(abox) {
     card.addSection(section);
   }
 
+  // Preserve is available even with no actionables — the ABox is still worth keeping.
+  if (graph.length > 0) {
+    card.addSection(buildPreserveOnlySection(abox, emailRef));
+  }
+
   return card.build();
+}
+
+/**
+ * A section with just the Preserve in Drive button, for the no-actionables card.
+ * @param {Object} abox
+ * @param {Object} emailRef
+ * @returns {CardSection}
+ */
+function buildPreserveOnlySection(abox, emailRef) {
+  var preserveButton = CardService.newTextButton()
+    .setText('Preservar en Drive')
+    .setOnClickAction(preserveAction(abox, emailRef));
+  return CardService.newCardSection().addWidget(
+    CardService.newButtonSet().addButton(preserveButton)
+  );
+}
+
+/**
+ * Builds the Preserve action carrying the ABox + email reference as parameters.
+ * ponytail: the ABox rides in action parameters (string-capped by CardService).
+ * For a single-email PoC the ABox is a handful of instances and fits; a very
+ * large ABox would need a stored handle (CacheService/Properties) instead.
+ * @param {Object} abox
+ * @param {Object} emailRef
+ * @returns {Action}
+ */
+function preserveAction(abox, emailRef) {
+  return CardService.newAction()
+    .setFunctionName('onPreserve')
+    .setParameters({
+      abox: JSON.stringify(abox),
+      emailRef: JSON.stringify(emailRef || {})
+    });
 }
 
 /**
