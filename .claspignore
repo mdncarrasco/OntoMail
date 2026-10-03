@@ -1,0 +1,7 @@
+# Only push Apps Script sources + manifest. Keep everything else local.
+**/**
+!appsscript.json
+!Code.gs
+!Cards.gs
+!GeminiService.gs
+!tbox.gs

@@ -1,0 +1,40 @@
+{
+  "timeZone": "America/Santiago",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.addons.execute",
+    "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/tasks",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/script.external_request"
+  ],
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Tasks",
+        "serviceId": "tasks",
+        "version": "v1"
+      }
+    ]
+  },
+  "addOns": {
+    "common": {
+      "name": "OntoMail",
+      "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/account_tree_black_24dp.png",
+      "homepageTrigger": {
+        "runFunction": "buildHomeCard",
+        "enabled": true
+      }
+    },
+    "gmail": {
+      "contextualTriggers": [
+        {
+          "unconditional": {},
+          "onTriggerFunction": "buildContextualCard"
+        }
+      ]
+    }
+  }
+}
