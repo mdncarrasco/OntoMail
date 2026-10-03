@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OntoMail — App Map</title>
+<style>
+  :root { --ink:#1c2733; --muted:#5a6b7b; --line:#d6dee6; --accent:#2d6cdf; --bg:#fbfcfe; --code:#eef2f7; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         color:var(--ink); background:var(--bg); line-height:1.55; }
+  main { max-width: 880px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.8rem; margin:.2rem 0 .1rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .6rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  .sub { color: var(--muted); margin:0 0 1.2rem; }
+  code, .path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .path { background: var(--code); padding:.08em .4em; border-radius:4px; font-size:.92em; }
+  ul { padding-left: 1.2rem; }
+  li { margin:.35rem 0; }
+  .diagram { width:100%; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem; }
+  details { background:#fff; border:1px solid var(--line); border-radius:8px; padding:.5rem .9rem; margin:.5rem 0; }
+  summary { cursor:pointer; font-weight:600; }
+  .note { background:#fff; border-left:4px solid var(--accent); padding:.7rem 1rem; border-radius:4px; }
+  footer { margin-top:3rem; color:var(--muted); font-size:.9rem; border-top:1px solid var(--line); padding-top:1rem; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>OntoMail — App Map</h1>
+  <p class="sub">A take-home guide to your own app: what each piece does, how data flows, and where to change things. Snapshot of the finished code; it can drift as the code changes.</p>
+
+  <h2>What it is</h2>
+  <p>A Gmail Add-on (Google Apps Script) that extracts the ontological <strong>ABox</strong> of the open email with Gemini, grounded in a <strong>gist</strong> TBox subset, and turns commitments into Google Tasks. Four moving parts:</p>
+  <ul>
+    <li><span class="path">Code.gs</span> — entry triggers and action handlers (process, create tasks, preserve).</li>
+    <li><span class="path">Cards.gs</span> — the CardService UI (home, parking lot, actionables, states).</li>
+    <li><span class="path">GeminiService.gs</span> — the LLM call and JSON-LD parse.</li>
+    <li><span class="path">tbox.gs</span> — the gist ontology subset injected into the prompt.</li>
+  </ul>
+
+  <h2>One action, end to end: pressing “Procesar correo”</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 820 230" role="img" aria-label="Flow from pressing Process to the results card" width="820" height="230">
+      <style>
+        .box{fill:#fff;stroke:#2d6cdf;stroke-width:1.5;rx:8;}
+        .lbl{font:600 12px system-ui;fill:#1c2733;}
+        .sm{font:11px ui-monospace,Consolas,monospace;fill:#5a6b7b;}
+        .arrow{stroke:#5a6b7b;stroke-width:1.5;marker-end:url(#a);fill:none;}
+      </style>
+      <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#5a6b7b"/></marker></defs>
+
+      <rect class="box" x="10" y="30" width="150" height="56" rx="8"/>
+      <text class="lbl" x="26" y="54">Botón Procesar</text>
+      <text class="sm" x="26" y="72">Cards.gs: home</text>
+
+      <rect class="box" x="200" y="30" width="170" height="56" rx="8"/>
+      <text class="lbl" x="216" y="54">onProcess(e)</text>
+      <text class="sm" x="216" y="72">Code.gs</text>
+
+      <rect class="box" x="410" y="30" width="180" height="56" rx="8"/>
+      <text class="lbl" x="426" y="48">extractAbox(email)</text>
+      <text class="sm" x="426" y="66">GeminiService.gs</text>
+      <text class="sm" x="426" y="80">+ tbox.gs</text>
+
+      <rect class="box" x="630" y="30" width="175" height="56" rx="8"/>
+      <text class="lbl" x="646" y="48">Gemini API</text>
+      <text class="sm" x="646" y="66">JSON-LD ABox</text>
+
+      <rect class="box" x="300" y="150" width="230" height="56" rx="8"/>
+      <text class="lbl" x="316" y="174">buildResultsCard(abox)</text>
+      <text class="sm" x="316" y="192">Cards.gs — parking lot + actionables</text>
+
+      <line class="arrow" x1="160" y1="58" x2="198" y2="58"/>
+      <line class="arrow" x1="370" y1="58" x2="408" y2="58"/>
+      <line class="arrow" x1="590" y1="58" x2="628" y2="58"/>
+      <line class="arrow" x1="700" y1="86" x2="500" y2="150"/>
+      <line class="arrow" x1="285" y1="86" x2="360" y2="150"/>
+    </svg>
+  </div>
+  <p class="muted">The ABox then branches: commitments become editable actionables (→ <code>onCreateTasks</code> → Google Tasks), and <strong>Preservar</strong> writes a Markdown file into <code>Drive/OntoMail/</code> (→ <code>onPreserve</code>).</p>
+
+  <h2>A 2-stop reference route</h2>
+  <p class="muted">Open the project in your editor and follow the Process action. (Reference route — paths and symbols verified against the finished source.)</p>
+  <details open>
+    <summary>Stop 1 — the entry point</summary>
+    <p><span class="path">Code.gs</span> → <code>onProcess(e)</code>. Reads the open message (<code>readCurrentEmail</code>), calls <code>extractAbox</code>, and branches: commitments → <code>buildResultsCard</code>, none → <code>buildNoActionablesCard</code>, failure → <code>buildErrorCard</code> (with Reintentar). This is where a new behavior on “process” would start.</p>
+  </details>
+  <details>
+    <summary>Stop 2 — the LLM contract</summary>
+    <p><span class="path">GeminiService.gs</span> → <code>extractAbox</code> builds the prompt from <span class="path">tbox.gs</span> (<code>buildTboxPromptBlock</code>) and asks Gemini for JSON-LD matching <code>buildAboxResponseSchema</code>. The retry on 503/429 lives here.</p>
+  </details>
+
+  <h2>To change this, start here</h2>
+  <ul>
+    <li><strong>Add or rename a gist type:</strong> <span class="path">tbox.gs</span> (<code>ONTOMAIL_TBOX.classes</code> and the schema <code>enum</code>) + the accent in <span class="path">Cards.gs</span> (<code>TYPE_ACCENTS</code>, <code>TYPE_ORDER</code>).</li>
+    <li><strong>Change what a created task contains:</strong> <span class="path">Code.gs</span> → <code>onCreateTasks</code> (the <code>task</code> object passed to <code>Tasks.Tasks.insert</code>).</li>
+    <li><strong>Change the preserved Markdown or its folder:</strong> <span class="path">Code.gs</span> → <code>buildAboxMarkdown</code> and <code>getOntoMailFolder</code>.</li>
+    <li><strong>Switch the model:</strong> no code change — set <code>GEMINI_MODEL</code> in Script Properties.</li>
+  </ul>
+
+  <h2>A practice to reuse</h2>
+  <div class="note">
+    <p>When an integration behaves differently from your mental model, <strong>make the real data observable before patching</strong>. The “No seleccionaste ningún compromiso” bug came from assuming the switch arrived in <code>e.formInputs</code>; the fix read the documented flat <code>e.formInput</code> map, and a one-line <code>JSON.stringify(e)</code> dump turned guesswork into fact. The same move resolved the Gemini 404/503 (a <code>listModels()</code> call and an error message that names the model). Evidence: the <em>Revisions</em> section of <span class="path">devpost/checklist.md</span> and the self-check <span class="path">tests/form_inputs_check.js</span>, which now pins both input shapes.</p>
+  </div>
+
+  <h2>Run it again</h2>
+  <p><code>clasp push --force</code>, then open an email in Gmail with OntoMail installed and press <strong>Procesar correo</strong>. Setup is in <span class="path">README.md</span>.</p>
+
+  <footer>
+    Snapshot of OntoMail's source at the final build commit. The map can drift as the code changes.<br>
+    Built at HakaLab — Continuous value delivery.
+  </footer>
+</main>
+</body>
+</html>

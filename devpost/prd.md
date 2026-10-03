@@ -65,7 +65,7 @@ Develops `scope.md > The Core Loop` and `scope.md > What "Working" Looks Like`.
 ### Preserving the ABox to Drive
 Develops `scope.md > The POC Boundary` (preserve = Markdown in Drive).
 - **Preserve in Drive** is an optional, separate action (independent of creating tasks).
-- It writes a Markdown file to the user's Drive containing the ABox as embedded JSON-LD plus a reference (subject/link) back to the source email.
+- It writes a Markdown file into an **OntoMail folder** in the user's Drive (created on first use, reused after) containing the ABox as embedded JSON-LD plus a reference (subject/link) back to the source email. Grouping all preserved ABox files in one folder makes them the seed corpus of the future enterprise ontology.
   - [ ] Pressing Preserve creates a Markdown file in Drive with the ABox JSON-LD and the email reference.
   - [ ] Preserving does not require creating tasks, and creating tasks does not require preserving.
 
