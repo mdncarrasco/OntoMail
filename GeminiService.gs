@@ -51,15 +51,27 @@ function extractAbox(email) {
     muteHttpExceptions: true
   };
 
-  var response = UrlFetchApp.fetch(url, options);
-  var code = response.getResponseCode();
-  var text = response.getContentText();
+  // Retry on transient overload/rate-limit (503/429). Gemini free tier spikes
+  // are usually momentary, so a couple of short backoffs turn them into success.
+  var MAX_TRIES = 3;
+  var response, code, text;
+  for (var attempt = 1; attempt <= MAX_TRIES; attempt++) {
+    response = UrlFetchApp.fetch(url, options);
+    code = response.getResponseCode();
+    text = response.getContentText();
+    if (code !== 503 && code !== 429) { break; }
+    if (attempt < MAX_TRIES) {
+      Utilities.sleep(1000 * attempt); // 1s, then 2s
+    }
+  }
 
   if (code !== 200) {
     var detail = text && text.trim() !== '' ? text : '(sin cuerpo)';
     if (code === 404) {
       detail = 'modelo "' + model + '" no encontrado en v1beta. ' +
         'Verifica GEMINI_MODEL con ListModels. ' + detail;
+    } else if (code === 503 || code === 429) {
+      detail = 'Gemini saturado tras ' + MAX_TRIES + ' intentos. Reintenta en un momento. ' + detail;
     }
     throw new Error('Gemini respondió HTTP ' + code + ': ' + detail);
   }
