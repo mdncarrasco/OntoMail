@@ -136,9 +136,24 @@ function onPreserve(e) {
   var baseName = (emailRef.subject || 'correo').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
   var fileName = 'OntoMail - ' + baseName + '.md';
 
-  var file = DriveApp.createFile(fileName, markdown, 'text/markdown');
+  var folder = getOntoMailFolder();
+  var file = folder.createFile(fileName, markdown, 'text/markdown');
 
-  return notify('Guardado en Drive: ' + file.getName());
+  return notify('Guardado en Drive/OntoMail: ' + file.getName());
+}
+
+/**
+ * Returns the "OntoMail" folder in the user's Drive, creating it on first use
+ * and reusing it afterward, so every preserved ABox lands in one place — the
+ * seed corpus of the enterprise ontology.
+ * @returns {Folder}
+ */
+function getOntoMailFolder() {
+  var folders = DriveApp.getFoldersByName('OntoMail');
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return DriveApp.createFolder('OntoMail');
 }
 
 /**
