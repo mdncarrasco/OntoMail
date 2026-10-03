@@ -25,13 +25,37 @@ function buildContextualCard(e) {
 }
 
 /**
- * Action: process the currently open email.
- * Wired in slice 2 (Gemini extraction). Placeholder for now.
+ * Action: process the currently open email. Reads the message, extracts its
+ * ABox with Gemini, and shows the results card (parking lot of instances).
  * @param {Object} e - The add-on action event object.
  * @returns {ActionResponse}
  */
 function onProcess(e) {
-  return notify('El procesamiento se habilita en el siguiente paso.');
+  var email = readCurrentEmail(e);
+  var abox = extractAbox(email);
+  return CardService.newActionResponseBuilder()
+    .setNavigation(
+      CardService.newNavigation().pushCard(buildResultsCard(abox))
+    )
+    .build();
+}
+
+/**
+ * Reads the currently open Gmail message into a plain object.
+ * @param {Object} e - The add-on event object (carries the message token).
+ * @returns {{subject: string, sender: string, body: string}}
+ */
+function readCurrentEmail(e) {
+  var accessToken = e.gmail.accessToken;
+  var messageId = e.gmail.messageId;
+  GmailApp.setCurrentMessageAccessToken(accessToken);
+
+  var message = GmailApp.getMessageById(messageId);
+  return {
+    subject: message.getSubject(),
+    sender: message.getFrom(),
+    body: message.getPlainBody()
+  };
 }
 
 /**
